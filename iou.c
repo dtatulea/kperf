@@ -310,15 +310,10 @@ static int iou_register_zerocopy_rx(struct worker_state *self)
 	ring_entries = (area_size / (page_size * 2));
 	ring_size = get_rq_ring_size(ring_entries);
 
-	area_ptr = mmap(NULL,
-		   area_size + ring_size,
-		   PROT_READ | PROT_WRITE,
-		   MAP_ANONYMOUS | MAP_PRIVATE,
-		   -1,
-		   0
-	);
+	area_ptr = mmap(NULL, area_size, PROT_READ | PROT_WRITE,
+			MAP_ANONYMOUS | MAP_PRIVATE, -1, 0);
 	if (area_ptr == MAP_FAILED) {
-		warn("Failed to mmap zero copy receive memory");
+		warn("Failed to mmap zero copy receive memory area.");
 		return -1;
 	}
 	struct io_uring_zcrx_area_reg area_reg = {
@@ -327,7 +322,14 @@ static int iou_register_zerocopy_rx(struct worker_state *self)
 		.flags = 0,
 	};
 
-	ring_ptr = (char *)area_ptr + area_size;
+	ring_ptr = mmap(NULL, ring_size, PROT_READ | PROT_WRITE,
+			MAP_ANONYMOUS | MAP_PRIVATE, 0, 0);
+	if (ring_ptr == MAP_FAILED) {
+		warn("Failed to mmap zero copy ring memory");
+		munmap(area_ptr, area_size);
+		return -1;
+	}
+
 	struct io_uring_region_desc region_reg = {
 		.user_addr = (__u64)(unsigned long)ring_ptr,
 		.size = ring_size,
@@ -345,7 +347,8 @@ static int iou_register_zerocopy_rx(struct worker_state *self)
 	ret = io_uring_register_ifq(&state->ring, &reg);
 	if (ret) {
 		warn("io_uring_register_ifq failed: %d", ret);
-		munmap(area_ptr, area_size + ring_size);
+		munmap(area_ptr, area_size);
+		munmap(ring_ptr, ring_size);
 		return ret;
 	}
 
