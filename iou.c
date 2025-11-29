@@ -299,6 +299,7 @@ static int iou_register_zerocopy_rx(struct worker_state *self)
 {
 	struct iou_state *state = get_iou_state(self);
 	unsigned int ring_entries;
+	bool hugepages = true;
 	size_t area_size;
 	size_t ring_size;
 	long rx_buf_len;
@@ -317,13 +318,19 @@ static int iou_register_zerocopy_rx(struct worker_state *self)
 	ring_size = get_rq_ring_size(ring_entries, rx_buf_len);
 
 	area_ptr = mmap(NULL, area_size, PROT_READ | PROT_WRITE,
-			MAP_ANONYMOUS | MAP_PRIVATE, -1, 0);
+			MAP_ANONYMOUS | MAP_PRIVATE | MAP_HUGE_2MB, -1, 0);
 	if (area_ptr == MAP_FAILED) {
-		warn("Failed to mmap zero copy receive memory area.");
-		return -1;
+		hugepages = false;
+		area_ptr = mmap(NULL, area_size, PROT_READ | PROT_WRITE,
+				MAP_ANONYMOUS | MAP_PRIVATE, -1, 0);
+		if (area_ptr == MAP_FAILED) {
+			warn("Failed to mmap zero copy receive memory area.");
+			return -1;
+		}
 	}
 
-	kpm_info("Using buffer with page size: %d", rx_buf_len);
+	kpm_info("Using %s with page size",
+		 hugepages ? "hugepages" : "regular pages", rx_buf_len);
 
 	struct io_uring_zcrx_area_reg area_reg = {
 		.addr = (__u64)(unsigned long)area_ptr,
