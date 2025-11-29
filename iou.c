@@ -420,9 +420,9 @@ static void iou_prep(struct worker_state *self)
 	p.flags |= IORING_SETUP_SUBMIT_ALL;
 	if (self->opts.rx_mode == KPM_RX_MODE_SOCKET_ZEROCOPY)
 		p.flags |= IORING_SETUP_CQE32;
-	p.cq_entries = 512;
+	p.cq_entries = 4096;
 
-	ret = io_uring_queue_init_params(64, &state->ring, &p);
+	ret = io_uring_queue_init_params(256, &state->ring, &p);
 	if (ret)
 		err(5, "Failed to create io_uring");
 
