@@ -67,6 +67,7 @@ static struct {
 	bool iou_dst;
 	bool zerocopy_rx;
 	unsigned int iou_rx_size_mb;
+	int iou_rx_page_size;
 } opt = {
 	.tls_ver = TLS_1_3_VERSION,
 	.src = "localhost",
@@ -102,6 +103,7 @@ static struct {
 	.iou_dst = false,
 	.zerocopy_rx = false,
 	.iou_rx_size_mb = 64,
+	.iou_rx_page_size = -1,
 };
 
 #define dbg(fmt...) while (0) { warnx(fmt); }
@@ -285,6 +287,9 @@ static const struct opt_table opts[] = {
 			      "Use zero copy on receive"),
 	OPT_WITH_ARG("--iou-rx-size-mb <arg>", opt_set_uintval, opt_show_uintval,
 		     &opt.iou_rx_size_mb, "Size of RX memory reserved by io_uring"),
+	OPT_WITH_ARG("--iou-rx-page-size <arg>", opt_set_intval, opt_show_intval,
+		     &opt.iou_rx_page_size, "Page size"),
+
 	OPT_ENDTABLE
 };
 
@@ -840,6 +845,7 @@ int main(int argc, char *argv[])
 		.validate = opt.validate,
 		.iou = opt.iou_dst,
 		.iou_rx_size_mb = opt.iou_rx_size_mb,
+		.iou_rx_page_size = opt.iou_rx_page_size,
 	};
 	if (kpm_req_mode(dst, &dst_mode) < 0) {
 		warnx("Failed setup destination mode");

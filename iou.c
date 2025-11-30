@@ -284,15 +284,15 @@ static void iou_handle_recvzc(struct worker_state *self, struct io_uring_cqe *cq
 	io_uring_smp_store_release(rq_ring->ktail, ++rq_ring->rq_tail);
 }
 
-static size_t get_rq_ring_size(unsigned int entries)
+static size_t get_rq_ring_size(unsigned int entries, long rx_page_size)
 {
 	size_t size;
 
 	size = entries * sizeof(struct io_uring_zcrx_rqe);
 	/* add space for the header (head/tail/etc.) */
-	size += page_size;
+	size += rx_page_size;
 
-	return ALIGN_UP(size, page_size);
+	return ALIGN_UP(size, rx_page_size);
 }
 
 static int iou_register_zerocopy_rx(struct worker_state *self)
@@ -301,14 +301,20 @@ static int iou_register_zerocopy_rx(struct worker_state *self)
 	unsigned int ring_entries;
 	size_t area_size;
 	size_t ring_size;
+	long rx_buf_len;
 	void *area_ptr;
 	void *ring_ptr;
 	int ret;
 
+	if (self->opts.iou.rx_page_size > 0)
+		rx_buf_len = self->opts.iou.rx_page_size;
+	else
+		rx_buf_len = page_size;
+
 	area_size = self->opts.iou.rx_size_mb * 1024 * 1024;
 	/* arbitrary ring size chosen based on rx_size_mb */
-	ring_entries = (area_size / (page_size * 2));
-	ring_size = get_rq_ring_size(ring_entries);
+	ring_entries = (area_size / (rx_buf_len * 2));
+	ring_size = get_rq_ring_size(ring_entries, rx_buf_len);
 
 	area_ptr = mmap(NULL, area_size, PROT_READ | PROT_WRITE,
 			MAP_ANONYMOUS | MAP_PRIVATE, -1, 0);
@@ -316,6 +322,9 @@ static int iou_register_zerocopy_rx(struct worker_state *self)
 		warn("Failed to mmap zero copy receive memory area.");
 		return -1;
 	}
+
+	kpm_info("Using buffer with page size: %d", rx_buf_len);
+
 	struct io_uring_zcrx_area_reg area_reg = {
 		.addr = (__u64)(unsigned long)area_ptr,
 		.len = area_size,
@@ -342,6 +351,8 @@ static int iou_register_zerocopy_rx(struct worker_state *self)
 		.rq_entries = ring_entries,
 		.area_ptr = (__u64)(unsigned long)&area_reg,
 		.region_ptr = (__u64)(unsigned long)&region_reg,
+		//.rx_buf_len = (__u32) page_size,
+		.__resv2 = (__u32) rx_buf_len,
 	};
 
 	ret = io_uring_register_ifq(&state->ring, &reg);

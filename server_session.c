@@ -545,6 +545,7 @@ server_msg_mode(struct session_state *self, struct kpm_header *hdr)
 	self->validate = req->validate;
 	self->iou = req->iou;
 	self->iou_state.rx_size_mb = req->iou_rx_size_mb;
+	self->iou_state.rx_page_size = req->iou_rx_page_size;
 
 	if (!self->tcp_sock && (req->tx_mode == KPM_TX_MODE_DEVMEM)) {
 		ret = devmem_setup_tx(&self->devmem, req->tx_provider, req->dmabuf_tx_size_mb,
@@ -604,6 +605,7 @@ server_msg_spawn_pworker(struct session_state *self, struct kpm_header *hdr)
 			},
 			.iou = {
 				.rx_size_mb = self->iou_state.rx_size_mb,
+				.rx_page_size = self->iou_state.rx_page_size,
 				.ifindex = self->iou_state.ifindex,
 				.queue_id = self->iou_state.queue_id,
 			},
